@@ -10,7 +10,7 @@ device = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
 )
 
-num_epochs = 25
+num_epochs = 20
 noise_dim = 100
 
 # Checkpoint 설정
@@ -26,6 +26,11 @@ latest_dir = os.path.join(
     "checkpoint_Latest"
 )
 
+milestone_dir = os.path.join(
+    checkpoint_dir,
+    "checkpoint_Milestone"
+)
+
 # 폴더가 없으면 생성
 os.makedirs(
     periodic_dir,
@@ -34,6 +39,11 @@ os.makedirs(
 
 os.makedirs(
     latest_dir,
+    exist_ok=True
+)
+
+os.makedirs(
+    milestone_dir,
     exist_ok=True
 )
 
@@ -55,6 +65,30 @@ optimizer_D = torch.optim.Adam(
     discriminator.parameters(),
     lr=0.0002,
     betas=(0.5, 0.999)
+)
+
+# Checkpoint 0 저장
+checkpoint = {
+    "epoch": 0,
+    "generator_state_dict": generator.state_dict(),
+    "discriminator_state_dict": discriminator.state_dict(),
+    "optimizer_G_state_dict": optimizer_G.state_dict(),
+    "optimizer_D_state_dict": optimizer_D.state_dict()
+}
+
+checkpoint_path = os.path.join(
+    milestone_dir,
+    "checkpoint_0.pth"
+)
+
+torch.save(
+    checkpoint,
+    checkpoint_path
+)
+
+print(
+    f"Milestone Checkpoint 저장: "
+    f"{checkpoint_path}"
 )
 
 # Training
@@ -262,4 +296,21 @@ for epoch in range(num_epochs):
         print(
             f"Checkpoint 저장: "
             f"{periodic_path}"
+        )
+
+    if current_epoch < 10:
+
+        milestone_path = os.path.join(
+            milestone_dir,
+            f"checkpoint_{current_epoch}.pth"
+        )
+
+        torch.save(
+            checkpoint,
+            milestone_path
+        )
+
+        print(
+            f"Milestone Checkpoint 저장: "
+            f"{milestone_path}"
         )

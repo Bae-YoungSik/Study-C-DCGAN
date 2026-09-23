@@ -28,11 +28,6 @@ latest_dir = os.path.join(
     "checkpoint_Latest"
 )
 
-milestone_dir = os.path.join(
-    checkpoint_dir,
-    "checkpoint_Milestone"
-)
-
 
 # Checkpoint 선택
 if len(sys.argv) == 1:
@@ -69,14 +64,7 @@ elif len(sys.argv) == 2:
     # 특정 Checkpoint 지정
     epoch = int(sys.argv[1])
 
-    if epoch < 10:
-
-        checkpoint_path = os.path.join(
-            milestone_dir,
-            f"checkpoint_{epoch}.pth"
-        )
-
-    elif epoch % 10 == 0:
+    if epoch % 10 == 0:
 
         checkpoint_path = os.path.join(
             periodic_dir,
@@ -158,6 +146,14 @@ labels = torch.arange(
     num_classes,
     device=device
 )
+
+# print(labels.shape)
+
+# labels = torch.full(
+#     [10],
+#     4,
+#     device=device
+# )
 
 
 # 이미지 생성
