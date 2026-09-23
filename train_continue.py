@@ -14,7 +14,7 @@ device = torch.device(
 noise_dim = 100
 
 # 이번 실행에서 추가로 학습할 epoch 수
-additional_epochs = 65
+additional_epochs = 900
 
 # Checkpoint 설정
 checkpoint_dir = "checkpoint"

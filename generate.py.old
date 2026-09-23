@@ -1,10 +1,8 @@
 import os
-import sys
 import torch
 import matplotlib.pyplot as plt
 
 from model import Generator
-
 
 # 기본 설정
 device = torch.device(
@@ -14,97 +12,55 @@ device = torch.device(
 noise_dim = 100
 num_classes = 10
 
-
 # Checkpoint 경로
-checkpoint_dir = "checkpoint"
-
-periodic_dir = os.path.join(
-    checkpoint_dir,
-    "checkpoint_Periodic"
-)
-
 latest_dir = os.path.join(
-    checkpoint_dir,
+    "checkpoint",
     "checkpoint_Latest"
 )
 
+# 최신 Checkpoint 찾기
+checkpoint_files = [
+    file
+    for file in os.listdir(latest_dir)
+    if file.endswith(".pth")
+]
 
-# Checkpoint 선택
-if len(sys.argv) == 1:
-
-    # 최신 Checkpoint 찾기
-    checkpoint_files = [
-        file
-        for file in os.listdir(latest_dir)
-        if file.endswith(".pth")
-    ]
-
-    if len(checkpoint_files) == 0:
-
-        raise FileNotFoundError(
-            "checkpoint_Latest에 checkpoint가 없습니다."
-        )
-
-    checkpoint_files.sort(
-        key=lambda file: int(
-            file.split("_")[1].split(".")[0]
-        )
-    )
-
-    checkpoint_file = checkpoint_files[-1]
-
-    checkpoint_path = os.path.join(
-        latest_dir,
-        checkpoint_file
-    )
-
-
-elif len(sys.argv) == 2:
-
-    # 특정 Checkpoint 지정
-    epoch = int(sys.argv[1])
-
-    if epoch % 10 == 0:
-
-        checkpoint_path = os.path.join(
-            periodic_dir,
-            f"checkpoint_{epoch}.pth"
-        )
-
-    else:
-
-        checkpoint_path = os.path.join(
-            latest_dir,
-            f"checkpoint_{epoch}.pth"
-        )
-
-
-else:
-
-    raise ValueError(
-        "사용법: python generate.py [epoch]"
-    )
-
-
-# Checkpoint 확인
-if not os.path.exists(checkpoint_path):
+if len(checkpoint_files) == 0:
 
     raise FileNotFoundError(
-        f"Checkpoint를 찾을 수 없습니다:\n"
-        f"{checkpoint_path}"
+        "checkpoint_Latest에 checkpoint가 없습니다."
     )
 
+checkpoint_files.sort(
+    key=lambda file: int(
+        file.split("_")[1].split(".")[0]
+    )
+)
+
+latest_file = checkpoint_files[-1]
+
+latest_path = os.path.join(
+    latest_dir,
+    latest_file
+)
+
+# # 특정 Checkpoint 지정
+# checkpoint_path = os.path.join(
+#     "checkpoint",
+#     "checkpoint_Periodic",
+#     "checkpoint_30.pth"
+# )
+
 print("불러올 Checkpoint:")
-print(checkpoint_path)
+print(latest_path)
 
 
 # Generator 생성
 generator = Generator().to(device)
 
-
 # Checkpoint 불러오기
 checkpoint = torch.load(
-    checkpoint_path,
+    latest_path,
     map_location=device
 )
 
@@ -116,7 +72,6 @@ generator.eval()
 
 print("Generator 불러오기 완료")
 print("Epoch:", checkpoint["epoch"])
-
 
 # Label 이름
 class_names = [
@@ -132,7 +87,6 @@ class_names = [
     "Ankle boot"
 ]
 
-
 # Noise 생성
 noise = torch.randn(
     num_classes,
@@ -140,21 +94,11 @@ noise = torch.randn(
     device=device
 )
 
-
 # Label 생성
 labels = torch.arange(
     num_classes,
     device=device
 )
-
-# print(labels.shape)
-
-# labels = torch.full(
-#     [10],
-#     4,
-#     device=device
-# )
-
 
 # 이미지 생성
 with torch.no_grad():
@@ -163,7 +107,6 @@ with torch.no_grad():
         noise,
         labels
     )
-
 
 # 이미지 출력
 plt.figure(
@@ -185,7 +128,7 @@ for i in range(num_classes):
         5,
         i + 1
     )
-
+    
     plt.imshow(
         image,
         cmap="gray"
@@ -200,3 +143,4 @@ for i in range(num_classes):
 plt.tight_layout()
 
 plt.show()
+
