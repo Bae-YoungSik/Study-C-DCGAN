@@ -1,0 +1,146 @@
+import os
+import torch
+import matplotlib.pyplot as plt
+
+from model import Generator
+
+# 기본 설정
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+
+noise_dim = 100
+num_classes = 10
+
+# Checkpoint 경로
+latest_dir = os.path.join(
+    "checkpoint",
+    "checkpoint_Latest"
+)
+
+# 최신 Checkpoint 찾기
+checkpoint_files = [
+    file
+    for file in os.listdir(latest_dir)
+    if file.endswith(".pth")
+]
+
+if len(checkpoint_files) == 0:
+
+    raise FileNotFoundError(
+        "checkpoint_Latest에 checkpoint가 없습니다."
+    )
+
+checkpoint_files.sort(
+    key=lambda file: int(
+        file.split("_")[1].split(".")[0]
+    )
+)
+
+latest_file = checkpoint_files[-1]
+
+latest_path = os.path.join(
+    latest_dir,
+    latest_file
+)
+
+# # 특정 Checkpoint 지정
+# checkpoint_path = os.path.join(
+#     "checkpoint",
+#     "checkpoint_Periodic",
+#     "checkpoint_30.pth"
+# )
+
+print("불러올 Checkpoint:")
+print(latest_path)
+
+
+# Generator 생성
+generator = Generator().to(device)
+
+# Checkpoint 불러오기
+checkpoint = torch.load(
+    latest_path,
+    map_location=device
+)
+
+generator.load_state_dict(
+    checkpoint["generator_state_dict"]
+)
+
+generator.eval()
+
+print("Generator 불러오기 완료")
+print("Epoch:", checkpoint["epoch"])
+
+# Label 이름
+class_names = [
+    "T-shirt/top",
+    "Trouser",
+    "Pullover",
+    "Dress",
+    "Coat",
+    "Sandal",
+    "Shirt",
+    "Sneaker",
+    "Bag",
+    "Ankle boot"
+]
+
+# Noise 생성
+noise = torch.randn(
+    num_classes,
+    noise_dim,
+    device=device
+)
+
+# Label 생성
+labels = torch.arange(
+    num_classes,
+    device=device
+)
+
+# 이미지 생성
+with torch.no_grad():
+
+    generated_images = generator(
+        noise,
+        labels
+    )
+
+# 이미지 출력
+plt.figure(
+    figsize=(15, 3)
+)
+
+for i in range(num_classes):
+
+    image = generated_images[i]
+
+    # -1 ~ 1 → 0 ~ 1
+    image = (image + 1) / 2
+
+    # Tensor → CPU → numpy
+    image = image.squeeze().cpu().numpy()
+
+    plt.subplot(
+        2,
+        5,
+        i + 1
+    )
+
+    plt.imshow(
+        image,
+        cmap="gray"
+    )
+
+    plt.title(
+        f"{i}: {class_names[i]}"
+    )
+
+    plt.axis("off")
+
+plt.tight_layout()
+
+plt.show()
+
