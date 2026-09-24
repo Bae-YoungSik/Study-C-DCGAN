@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 import torch.nn as nn
 
@@ -14,7 +15,26 @@ device = torch.device(
 noise_dim = 100
 
 # 이번 실행에서 추가로 학습할 epoch 수
-additional_epochs = 900
+# additional_epochs = 900
+if len(sys.argv) == 1:
+
+    additional_epochs = 1
+
+elif len(sys.argv) == 2:
+
+    additional_epochs = int(sys.argv[1])
+
+    if additional_epochs <= 0:
+
+        raise ValueError(
+            "additional_epochs는 1 이상의 정수여야 합니다."
+        )
+
+else:
+
+    raise ValueError(
+        "사용법: python train_continue.py [additional_epochs]"
+    )
 
 # Checkpoint 설정
 checkpoint_dir = "checkpoint"

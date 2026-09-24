@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 
-from dataset import train_loader
+from dataset import train_loader, test_loader
 from model import Generator, Discriminator
 
 # 기본 설정
@@ -66,6 +66,79 @@ optimizer_D = torch.optim.Adam(
     lr=0.0002,
     betas=(0.5, 0.999)
 )
+
+# Test 함수
+def test_discriminator():
+
+    generator.eval()
+    discriminator.eval()
+
+    total_loss = 0
+
+    with torch.no_grad():
+
+        for images, labels in test_loader:
+
+            real_images = images.to(device)
+            real_labels = labels.to(device)
+
+            batch_size = real_images.size(0)
+
+            # -------------------------
+            # 실제 테스트 이미지
+            # -------------------------
+            real_output = discriminator(
+                real_images,
+                real_labels
+            )
+
+            real_targets = torch.ones_like(
+                real_output
+            )
+
+            real_loss = criterion(
+                real_output,
+                real_targets
+            )
+
+            # -------------------------
+            # 생성 이미지
+            # -------------------------
+            noise = torch.randn(
+                batch_size,
+                noise_dim,
+                device=device
+            )
+
+            fake_images = generator(
+                noise,
+                real_labels
+            )
+
+            fake_output = discriminator(
+                fake_images,
+                real_labels
+            )
+
+            fake_targets = torch.zeros_like(
+                fake_output
+            )
+
+            fake_loss = criterion(
+                fake_output,
+                fake_targets
+            )
+
+            # -------------------------
+            # Test Loss
+            # -------------------------
+            loss = real_loss + fake_loss
+
+            total_loss += loss.item()
+
+    total_loss /= len(test_loader)
+
+    return total_loss
 
 # Checkpoint 0 저장
 checkpoint = {
@@ -215,11 +288,15 @@ for epoch in range(num_epochs):
 
     d_epoch_loss /= len(train_loader)
     g_epoch_loss /= len(train_loader)
+    
+    # Test
+    test_loss = test_discriminator()
 
     print(
         f"Epoch [{epoch + 1}/{num_epochs}] "
         f"D Loss: {d_epoch_loss:.4f} "
-        f"G Loss: {g_epoch_loss:.4f}"
+        f"G Loss: {g_epoch_loss:.4f} "
+        f"Test Loss: {test_loss:.4f}"
     )
 
     # ==================================================
