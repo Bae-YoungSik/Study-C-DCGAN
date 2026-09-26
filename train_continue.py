@@ -13,6 +13,7 @@ device = torch.device(
 )
 
 noise_dim = 100
+train_ratio = [1, 2] # Discriminator : Generator 학습 비율
 
 # 이번 실행에서 추가로 학습할 epoch 수
 # additional_epochs = 900
@@ -47,6 +48,11 @@ periodic_dir = os.path.join(
 latest_dir = os.path.join(
     checkpoint_dir,
     "checkpoint_Latest"
+)
+
+milestone_dir = os.path.join(
+    checkpoint_dir,
+    "checkpoint_Milestone"
 )
 
 # Checkpoint 폴더 확인
@@ -228,115 +234,135 @@ for epoch in range(
     for images, labels in train_loader:
 
         # 데이터 → Device
-        real_images = images.to(device)
-        real_labels = labels.to(device)
+        real_images = images.to(
+            device,
+            non_blocking=True
+        )
+
+        real_labels = labels.to(
+            device,
+            non_blocking=True
+        )
 
         batch_size = real_images.size(0)
 
         # ==================================================
         # 1. Discriminator 학습
         # ==================================================
-        optimizer_D.zero_grad()
+        for _ in range(train_ratio[0]):
+            
+            optimizer_D.zero_grad(set_to_none=True)
 
+            # 실제 이미지
+            real_output = discriminator(
+                real_images,
+                real_labels
+            )
 
-        # 실제 이미지
-        real_output = discriminator(
-            real_images,
-            real_labels
-        )
+            real_targets = torch.ones_like(
+                real_output
+            )
 
-        real_targets = torch.ones_like(
-            real_output
-        )
+            real_loss = criterion(
+                real_output,
+                real_targets
+            )
 
-        real_loss = criterion(
-            real_output,
-            real_targets
-        )
+            # 생성 이미지
+            noise = torch.randn(
+                batch_size,
+                noise_dim,
+                device=device
+            )
 
+            fake_images = generator(
+                noise,
+                real_labels
+            )
 
-        # 생성 이미지
-        noise = torch.randn(
-            batch_size,
-            noise_dim,
-            device=device
-        )
+            fake_output = discriminator(
+                fake_images.detach(),
+                real_labels
+            )
 
-        fake_images = generator(
-            noise,
-            real_labels
-        )
+            fake_targets = torch.zeros_like(
+                fake_output
+            )
 
-        fake_output = discriminator(
-            fake_images.detach(),
-            real_labels
-        )
+            fake_loss = criterion(
+                fake_output,
+                fake_targets
+            )
 
-        fake_targets = torch.zeros_like(
-            fake_output
-        )
+            # Discriminator Loss
+            d_loss = real_loss + fake_loss
 
-        fake_loss = criterion(
-            fake_output,
-            fake_targets
-        )
+            d_loss.backward()
 
-        # Discriminator Loss
-        d_loss = real_loss + fake_loss
+            optimizer_D.step()
 
-        d_loss.backward()
+            # Epoch Loss 누적
+            d_epoch_loss += d_loss.item()
 
-        optimizer_D.step()
 
         # ==================================================
         # 2. Generator 학습
         # ==================================================
-        optimizer_G.zero_grad()
+        # D gradient 계산 비활성화
+        for param in discriminator.parameters():
+            param.requires_grad = False
 
-        noise = torch.randn(
-            batch_size,
-            noise_dim,
-            device=device
-        )
+        for _ in range(train_ratio[1]):
 
-        fake_images = generator(
-            noise,
-            real_labels
-        )
+            optimizer_G.zero_grad(set_to_none=True)
 
-        fake_output = discriminator(
-            fake_images,
-            real_labels
-        )
+            noise = torch.randn(
+                batch_size,
+                noise_dim,
+                device=device
+            )
 
-        generator_targets = torch.ones_like(
-            fake_output
-        )
+            fake_images = generator(
+                noise,
+                real_labels
+            )
 
-        g_loss = criterion(
-            fake_output,
-            generator_targets
-        )
+            fake_output = discriminator(
+                fake_images,
+                real_labels
+            )
 
-        g_loss.backward()
+            generator_targets = torch.ones_like(
+                fake_output
+            )
 
-        optimizer_G.step()
+            g_loss = criterion(
+                fake_output,
+                generator_targets
+            )
 
-        # -------------------------
-        # Epoch Loss 누적
-        # -------------------------
-        d_epoch_loss += d_loss.item()
-        g_epoch_loss += g_loss.item()
+            g_loss.backward()
+
+            optimizer_G.step()
+
+            # Epoch Loss 누적
+            g_epoch_loss += g_loss.item()
+
+        # D gradient 계산 활성화
+        for param in discriminator.parameters():
+            param.requires_grad = True
 
     # =========================
     # Epoch Loss
     # =========================
-    d_epoch_loss /= len(train_loader)
-    g_epoch_loss /= len(train_loader)
+    d_epoch_loss /= (
+        len(train_loader) * train_ratio[0]
+    )
+    g_epoch_loss /= (
+        len(train_loader) * train_ratio[1]
+    )
 
-    # =========================
     # Test
-    # =========================
     test_loss = test_discriminator()
 
     current_epoch = epoch + 1
@@ -349,8 +375,10 @@ for epoch in range(
     )
 
     # ==================================================
-    # Checkpoint 생성
+    # Checkpoint 저장
     # ==================================================
+    current_epoch = epoch + 1
+
     checkpoint = {
         "epoch": current_epoch,
         "generator_state_dict": generator.state_dict(),
@@ -359,9 +387,7 @@ for epoch in range(
         "optimizer_D_state_dict": optimizer_D.state_dict()
     }
 
-    # ==================================================
-    # 1. Latest 저장
-    # ==================================================
+    # 1. Latest checkpoint
     latest_path = os.path.join(
         latest_dir,
         f"checkpoint_{current_epoch}.pth"
@@ -372,9 +398,7 @@ for epoch in range(
         latest_path
     )
 
-    # ==================================================
     # 2. 최근 10개만 유지
-    # ==================================================
     checkpoint_files = [
         file
         for file in os.listdir(latest_dir)
@@ -398,9 +422,7 @@ for epoch in range(
 
         os.remove(oldest_path)
 
-    # ==================================================
-    # 3. 10 Epoch마다 Periodic 저장
-    # ==================================================
+    # 3. 10 epoch마다 Periodic checkpoint 저장
     if current_epoch % 10 == 0:
 
         periodic_path = os.path.join(
@@ -414,7 +436,24 @@ for epoch in range(
         )
 
         print(
-            f"Periodic Checkpoint 저장: "
+            f"Checkpoint 저장: "
             f"{periodic_path}"
         )
 
+    # 4. 10 이하 Milestone checkpoint 저장
+    if current_epoch < 10:
+
+        milestone_path = os.path.join(
+            milestone_dir,
+            f"checkpoint_{current_epoch}.pth"
+        )
+
+        torch.save(
+            checkpoint,
+            milestone_path
+        )
+
+        print(
+            f"Milestone Checkpoint 저장: "
+            f"{milestone_path}"
+        )
