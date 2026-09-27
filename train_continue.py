@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import torch
 import torch.nn as nn
 
@@ -217,12 +218,17 @@ def test_discriminator():
 
     return total_loss
 
+# 총 시간 기록
+total_start_time = time.perf_counter()
 
 # Training
 for epoch in range(
     start_epoch,
     end_epoch
 ):
+
+    # epoch 시간 기록
+    epoch_start_time = time.perf_counter()
 
     generator.train()
     discriminator.train()
@@ -367,11 +373,17 @@ for epoch in range(
 
     current_epoch = epoch + 1
 
+    # 시간 계산
+    epoch_time = time.perf_counter() - epoch_start_time
+    elapsed_time = time.perf_counter() - total_start_time
+
     print(
         f"Epoch [{current_epoch}/{end_epoch}] "
         f"D Loss: {d_epoch_loss:.4f} "
         f"G Loss: {g_epoch_loss:.4f} "
-        f"Test Loss: {test_loss:.4f}"
+        f"Test Loss: {test_loss:.4f} "
+        f"Epoch Time: {epoch_time:.2f}s "
+        f"Elapsed Time: {elapsed_time / 60:.2f}min"
     )
 
     # ==================================================

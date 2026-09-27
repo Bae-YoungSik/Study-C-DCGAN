@@ -1,4 +1,5 @@
 import os
+import time
 import torch
 import torch.nn as nn
 
@@ -165,8 +166,14 @@ print(
     f"{checkpoint_path}"
 )
 
+# 총 시간 기록
+total_start_time = time.perf_counter()
+
 # Training
 for epoch in range(num_epochs):
+
+    # epoch 시간 기록
+    epoch_start_time = time.perf_counter()
 
     generator.train()
     discriminator.train()
@@ -314,11 +321,17 @@ for epoch in range(num_epochs):
     # Test
     test_loss = test_discriminator()
 
+    # 시간 계산
+    epoch_time = time.perf_counter() - epoch_start_time
+    elapsed_time = time.perf_counter() - total_start_time
+
     print(
         f"Epoch [{epoch + 1}/{num_epochs}] "
         f"D Loss: {d_epoch_loss:.4f} "
         f"G Loss: {g_epoch_loss:.4f} "
-        f"Test Loss: {test_loss:.4f}"
+        f"Test Loss: {test_loss:.4f} "
+        f"Epoch Time: {epoch_time:.2f}s "
+        f"Elapsed Time: {elapsed_time / 60:.2f}min"
     )
 
     # ==================================================

@@ -1,0 +1,4 @@
+0 : checkpoint 추가 전
+1 : 특정 checkpoint 로드 추가 이전
+2 : 10 이하 checkpoint 로드 추가 이전
+3 : G:D 학습 비율 추가 및 최저화 이전
