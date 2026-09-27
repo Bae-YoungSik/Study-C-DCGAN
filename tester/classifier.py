@@ -116,62 +116,138 @@ class Classifier(nn.Module):
         return self.model(x)
 
 
-classifier = Classifier().to(device)
+if __name__ == "__main__":
+    classifier = Classifier().to(device)
 
 
-# Loss / Optimizer
-criterion = nn.CrossEntropyLoss()
+    # Loss / Optimizer
+    criterion = nn.CrossEntropyLoss()
 
-optimizer = optim.Adam(
-    classifier.parameters(),
-    lr=0.001
-)
-
-
-# Training settings
-max_epochs = 50
-
-target_accuracy = 0.97
-target_class_accuracy = 0.95
+    optimizer = optim.Adam(
+        classifier.parameters(),
+        lr=0.001
+    )
 
 
-# Training
-for epoch in range(max_epochs):
+    # Training settings
+    max_epochs = 50
 
-    classifier.train()
-
-    train_loss = 0
-
-    for images, labels in train_loader:
-
-        images = images.to(device)
-        labels = labels.to(device)
-
-        optimizer.zero_grad()
-
-        output = classifier(images)
-
-        loss = criterion(output, labels)
-
-        loss.backward()
-        optimizer.step()
-
-        train_loss += loss.item()
+    target_accuracy = 0.97
+    target_class_accuracy = 0.95
 
 
-    # Validation
+    # Training
+    for epoch in range(max_epochs):
+
+        classifier.train()
+
+        train_loss = 0
+
+        for images, labels in train_loader:
+
+            images = images.to(device)
+            labels = labels.to(device)
+
+            optimizer.zero_grad()
+
+            output = classifier(images)
+
+            loss = criterion(output, labels)
+
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+
+
+        # Validation
+        classifier.eval()
+
+        validation_loss = 0
+
+        class_correct = [0] * 10
+        class_total = [0] * 10
+
+        confusion_matrix = torch.zeros(10, 10, dtype=torch.int64)
+
+        with torch.no_grad():
+
+            for images, labels in validation_loader:
+
+                images = images.to(device)
+                labels = labels.to(device)
+
+                output = classifier(images)
+
+                loss = criterion(output, labels)
+
+                validation_loss += loss.item()
+
+                predicted = output.argmax(dim=1)
+
+                for label, prediction in zip(labels, predicted):
+
+                    class_total[label.item()] += 1
+
+                    if label == prediction:
+                        class_correct[label.item()] += 1
+
+                    confusion_matrix[label.item(), prediction.item()] += 1
+        print()
+        print("Validation Confusion Matrix")
+        print(confusion_matrix)
+
+
+        validation_loss /= len(validation_loader)
+
+        class_accuracy = [
+            class_correct[i] / class_total[i]
+            for i in range(10)
+        ]
+
+        validation_accuracy = sum(class_correct) / sum(class_total)
+
+        min_class_accuracy = min(class_accuracy)
+
+
+        print(
+            f"Epoch [{epoch + 1}/{max_epochs}] "
+            f"Train Loss: {train_loss / len(train_loader):.4f} "
+            f"Validation Loss: {validation_loss:.4f} "
+            f"Validation Accuracy: {validation_accuracy * 100:.2f}% "
+            f"Min Class Accuracy: {min_class_accuracy * 100:.2f}%"
+        )
+        print(
+            "Class Accuracy: "
+            + ", ".join(
+                f"\n{i}: { class_accuracy[i] * 100:.2f}%"
+                for i in range(10)
+            )
+        )
+
+
+        # Check training criteria
+        if (
+            validation_accuracy >= target_accuracy
+            and min_class_accuracy >= target_class_accuracy
+        ):
+
+            print("Classifier training criteria satisfied.")
+
+            break
+
+
+    # Final test evaluation
     classifier.eval()
 
-    validation_loss = 0
+    test_loss = 0
 
     class_correct = [0] * 10
     class_total = [0] * 10
 
-    confusion_matrix = torch.zeros(10, 10, dtype=torch.int64)
-
     with torch.no_grad():
 
-        for images, labels in validation_loader:
+        for images, labels in test_loader:
 
             images = images.to(device)
             labels = labels.to(device)
@@ -180,7 +256,7 @@ for epoch in range(max_epochs):
 
             loss = criterion(output, labels)
 
-            validation_loss += loss.item()
+            test_loss += loss.item()
 
             predicted = output.argmax(dim=1)
 
@@ -191,113 +267,38 @@ for epoch in range(max_epochs):
                 if label == prediction:
                     class_correct[label.item()] += 1
 
-                confusion_matrix[label.item(), prediction.item()] += 1
-    print()
-    print("Validation Confusion Matrix")
-    print(confusion_matrix)
 
+    test_loss /= len(test_loader)
 
-    validation_loss /= len(validation_loader)
+    test_accuracy = sum(class_correct) / sum(class_total)
 
-    class_accuracy = [
+    test_class_accuracy = [
         class_correct[i] / class_total[i]
         for i in range(10)
     ]
 
-    validation_accuracy = sum(class_correct) / sum(class_total)
 
-    min_class_accuracy = min(class_accuracy)
+    # Final results
+    print()
+    print("Final Test Results")
+    print(f"Test Loss: {test_loss:.4f}")
+    print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
 
+    print("Class Accuracy:")
 
-    print(
-        f"Epoch [{epoch + 1}/{max_epochs}] "
-        f"Train Loss: {train_loss / len(train_loader):.4f} "
-        f"Validation Loss: {validation_loss:.4f} "
-        f"Validation Accuracy: {validation_accuracy * 100:.2f}% "
-        f"Min Class Accuracy: {min_class_accuracy * 100:.2f}%"
-    )
-    print(
-        "Class Accuracy: "
-        + ", ".join(
-            f"\n{i}: { class_accuracy[i] * 100:.2f}%"
-            for i in range(10)
+    for i in range(10):
+
+        print(
+            f"Class {i}: "
+            f"{test_class_accuracy[i] * 100:.2f}%"
         )
+
+
+    # Save classifier
+    torch.save(
+        classifier.state_dict(),
+        "./classifier/classifier.pth"
     )
 
-
-    # Check training criteria
-    if (
-        validation_accuracy >= target_accuracy
-        and min_class_accuracy >= target_class_accuracy
-    ):
-
-        print("Classifier training criteria satisfied.")
-
-        break
-
-
-# Final test evaluation
-classifier.eval()
-
-test_loss = 0
-
-class_correct = [0] * 10
-class_total = [0] * 10
-
-with torch.no_grad():
-
-    for images, labels in test_loader:
-
-        images = images.to(device)
-        labels = labels.to(device)
-
-        output = classifier(images)
-
-        loss = criterion(output, labels)
-
-        test_loss += loss.item()
-
-        predicted = output.argmax(dim=1)
-
-        for label, prediction in zip(labels, predicted):
-
-            class_total[label.item()] += 1
-
-            if label == prediction:
-                class_correct[label.item()] += 1
-
-
-test_loss /= len(test_loader)
-
-test_accuracy = sum(class_correct) / sum(class_total)
-
-test_class_accuracy = [
-    class_correct[i] / class_total[i]
-    for i in range(10)
-]
-
-
-# Final results
-print()
-print("Final Test Results")
-print(f"Test Loss: {test_loss:.4f}")
-print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
-
-print("Class Accuracy:")
-
-for i in range(10):
-
-    print(
-        f"Class {i}: "
-        f"{test_class_accuracy[i] * 100:.2f}%"
-    )
-
-
-# Save classifier
-torch.save(
-    classifier.state_dict(),
-    "./classifier/classifier.pth"
-)
-
-print()
-print("Classifier saved.")
+    print()
+    print("Classifier saved.")

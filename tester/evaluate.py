@@ -268,8 +268,8 @@ class Classifier(nn.Module):
 
 # 평가할 체크포인트 폴더
 checkpoint_folders = {
-    "third": "./checkpoint/3. third/checkpoint_Periodic",
-    "fourth": "./checkpoint/4. fourth/checkpoint_Periodic"
+    "fourth": "./checkpoint/4. fourth/checkpoint_Periodic",
+    "fifth": "./checkpoint/checkpoint_Periodic"
 }
 
 # 클래스당 생성할 이미지 수
@@ -353,7 +353,7 @@ classifier = Classifier().to(device)
 
 classifier.load_state_dict(
     torch.load(
-        "./classifier/classifier.pth",
+        "./tester/classifier/classifier.pth",
         map_location=device
     )
 )

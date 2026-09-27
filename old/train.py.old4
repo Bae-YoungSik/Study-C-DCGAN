@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import torch
 import torch.nn as nn
@@ -7,36 +6,14 @@ import torch.nn as nn
 from dataset import train_loader, test_loader
 from model import Generator, Discriminator
 
-
 # 기본 설정
 device = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
 )
 
+num_epochs = 20
 noise_dim = 100
 train_ratio = [1, 2] # Discriminator : Generator 학습 비율
-
-# 이번 실행에서 추가로 학습할 epoch 수
-# additional_epochs = 900
-if len(sys.argv) == 1:
-
-    additional_epochs = 1
-
-elif len(sys.argv) == 2:
-
-    additional_epochs = int(sys.argv[1])
-
-    if additional_epochs <= 0:
-
-        raise ValueError(
-            "additional_epochs는 1 이상의 정수여야 합니다."
-        )
-
-else:
-
-    raise ValueError(
-        "사용법: python train_continue.py [additional_epochs]"
-    )
 
 # Checkpoint 설정
 checkpoint_dir = "checkpoint"
@@ -56,41 +33,21 @@ milestone_dir = os.path.join(
     "checkpoint_Milestone"
 )
 
-# Checkpoint 폴더 확인
-if not os.path.exists(latest_dir):
-
-    raise FileNotFoundError(
-        "checkpoint_Latest 폴더를 찾을 수 없습니다."
-    )
-
-# 가장 최근 Checkpoint 찾기
-checkpoint_files = [
-    file
-    for file in os.listdir(latest_dir)
-    if file.endswith(".pth")
-]
-
-if len(checkpoint_files) == 0:
-
-    raise FileNotFoundError(
-        "checkpoint_Latest에 checkpoint가 없습니다."
-    )
-
-checkpoint_files.sort(
-    key=lambda file: int(
-        file.split("_")[1].split(".")[0]
-    )
+# 폴더가 없으면 생성
+os.makedirs(
+    periodic_dir,
+    exist_ok=True
 )
 
-latest_file = checkpoint_files[-1]
-
-latest_path = os.path.join(
+os.makedirs(
     latest_dir,
-    latest_file
+    exist_ok=True
 )
 
-print("불러올 Checkpoint:")
-print(latest_path)
+os.makedirs(
+    milestone_dir,
+    exist_ok=True
+)
 
 # 모델 생성
 generator = Generator().to(device)
@@ -112,39 +69,7 @@ optimizer_D = torch.optim.Adam(
     betas=(0.5, 0.999)
 )
 
-# Checkpoint 불러오기
-checkpoint = torch.load(
-    latest_path,
-    map_location=device
-)
-
-generator.load_state_dict(
-    checkpoint["generator_state_dict"]
-)
-
-discriminator.load_state_dict(
-    checkpoint["discriminator_state_dict"]
-)
-
-optimizer_G.load_state_dict(
-    checkpoint["optimizer_G_state_dict"]
-)
-
-optimizer_D.load_state_dict(
-    checkpoint["optimizer_D_state_dict"]
-)
-
-start_epoch = checkpoint["epoch"]
-
-end_epoch = start_epoch + additional_epochs
-
-print()
-print("Checkpoint 불러오기 완료")
-print("현재 Epoch:", start_epoch)
-print("학습 종료 Epoch:", end_epoch)
-
-
-# 테스트 함수
+# Test 함수
 def test_discriminator():
 
     generator.eval()
@@ -162,7 +87,7 @@ def test_discriminator():
             batch_size = real_images.size(0)
 
             # -------------------------
-            # 실제 이미지 + 올바른 label
+            # 실제 테스트 이미지
             # -------------------------
             real_output = discriminator(
                 real_images,
@@ -179,35 +104,7 @@ def test_discriminator():
             )
 
             # -------------------------
-            # 실제 이미지 + 잘못된 label
-            # -------------------------
-            wrong_offsets = torch.randint(
-                1,
-                10,
-                (batch_size,),
-                device=device
-            )
-
-            wrong_labels = (
-                real_labels + wrong_offsets
-            ) % 10
-
-            wrong_output = discriminator(
-                real_images,
-                wrong_labels
-            )
-
-            wrong_targets = torch.zeros_like(
-                wrong_output
-            )
-
-            wrong_loss = criterion(
-                wrong_output,
-                wrong_targets
-            )
-
-            # -------------------------
-            # 생성 이미지 + 올바른 label
+            # 생성 이미지
             # -------------------------
             noise = torch.randn(
                 batch_size,
@@ -237,11 +134,7 @@ def test_discriminator():
             # -------------------------
             # Test Loss
             # -------------------------
-            loss = (
-                real_loss
-                + wrong_loss
-                + fake_loss
-            )
+            loss = real_loss + fake_loss
 
             total_loss += loss.item()
 
@@ -249,15 +142,35 @@ def test_discriminator():
 
     return total_loss
 
+# Checkpoint 0 저장
+checkpoint = {
+    "epoch": 0,
+    "generator_state_dict": generator.state_dict(),
+    "discriminator_state_dict": discriminator.state_dict(),
+    "optimizer_G_state_dict": optimizer_G.state_dict(),
+    "optimizer_D_state_dict": optimizer_D.state_dict()
+}
+
+checkpoint_path = os.path.join(
+    milestone_dir,
+    "checkpoint_0.pth"
+)
+
+torch.save(
+    checkpoint,
+    checkpoint_path
+)
+
+print(
+    f"Milestone Checkpoint 저장: "
+    f"{checkpoint_path}"
+)
 
 # 총 시간 기록
 total_start_time = time.perf_counter()
 
 # Training
-for epoch in range(
-    start_epoch,
-    end_epoch
-):
+for epoch in range(num_epochs):
 
     # epoch 시간 기록
     epoch_start_time = time.perf_counter()
@@ -290,9 +203,7 @@ for epoch in range(
 
             optimizer_D.zero_grad(set_to_none=True)
 
-            # -------------------------
-            # 실제 이미지 + 올바른 label
-            # -------------------------
+            # 실제 이미지
             real_output = discriminator(
                 real_images,
                 real_labels
@@ -307,37 +218,7 @@ for epoch in range(
                 real_targets
             )
 
-            # -------------------------
-            # 실제 이미지 + 잘못된 label
-            # -------------------------
-            wrong_offsets = torch.randint(
-                1,
-                10,
-                (batch_size,),
-                device=device
-            )
-
-            wrong_labels = (
-                real_labels + wrong_offsets
-            ) % 10
-
-            wrong_output = discriminator(
-                real_images,
-                wrong_labels
-            )
-
-            wrong_targets = torch.zeros_like(
-                wrong_output
-            )
-
-            wrong_loss = criterion(
-                wrong_output,
-                wrong_targets
-            )
-
-            # -------------------------
-            # 생성 이미지 + 올바른 label
-            # -------------------------
+            # 생성 이미지
             noise = torch.randn(
                 batch_size,
                 noise_dim,
@@ -363,17 +244,13 @@ for epoch in range(
                 fake_targets
             )
 
-            # -------------------------
             # Discriminator Loss
-            # -------------------------
-            d_loss = (
-                real_loss
-                + wrong_loss
-                + fake_loss
-            )
+            d_loss = real_loss + fake_loss
 
+            # Gradient 계산
             d_loss.backward()
 
+            # Discriminator 업데이트
             optimizer_D.step()
 
             # Epoch Loss 누적
@@ -387,9 +264,10 @@ for epoch in range(
             param.requires_grad = False
 
         for _ in range(train_ratio[1]):
-
+            
             optimizer_G.zero_grad(set_to_none=True)
 
+            # 새로운 Noise 생성
             noise = torch.randn(
                 batch_size,
                 noise_dim,
@@ -401,11 +279,13 @@ for epoch in range(
                 real_labels
             )
 
+            # Discriminator를 통과
             fake_output = discriminator(
                 fake_images,
                 real_labels
             )
 
+            # Generator는 Fake를 Real로 판별하도록 학습
             generator_targets = torch.ones_like(
                 fake_output
             )
@@ -415,19 +295,21 @@ for epoch in range(
                 generator_targets
             )
 
+            # Gradient 계산
             g_loss.backward()
 
+            # Generator 업데이트
             optimizer_G.step()
 
             # Epoch Loss 누적
             g_epoch_loss += g_loss.item()
-
+        
         # D gradient 계산 활성화
         for param in discriminator.parameters():
             param.requires_grad = True
 
     # =========================
-    # Epoch Loss
+    # Epoch 결과
     # =========================
     d_epoch_loss /= (
         len(train_loader) * train_ratio[0]
@@ -435,18 +317,16 @@ for epoch in range(
     g_epoch_loss /= (
         len(train_loader) * train_ratio[1]
     )
-
+    
     # Test
     test_loss = test_discriminator()
-
-    current_epoch = epoch + 1
 
     # 시간 계산
     epoch_time = time.perf_counter() - epoch_start_time
     elapsed_time = time.perf_counter() - total_start_time
 
     print(
-        f"Epoch [{current_epoch}/{end_epoch}] "
+        f"Epoch [{epoch + 1}/{num_epochs}] "
         f"D Loss: {d_epoch_loss:.4f} "
         f"G Loss: {g_epoch_loss:.4f} "
         f"Test Loss: {test_loss:.4f} "
@@ -537,4 +417,3 @@ for epoch in range(
             f"Milestone Checkpoint 저장: "
             f"{milestone_path}"
         )
-

@@ -87,7 +87,7 @@ def test_discriminator():
             batch_size = real_images.size(0)
 
             # -------------------------
-            # 실제 테스트 이미지
+            # 실제 이미지 + 올바른 label
             # -------------------------
             real_output = discriminator(
                 real_images,
@@ -104,7 +104,35 @@ def test_discriminator():
             )
 
             # -------------------------
-            # 생성 이미지
+            # 실제 이미지 + 잘못된 label
+            # -------------------------
+            wrong_offsets = torch.randint(
+                1,
+                10,
+                (batch_size,),
+                device=device
+            )
+
+            wrong_labels = (
+                real_labels + wrong_offsets
+            ) % 10
+
+            wrong_output = discriminator(
+                real_images,
+                wrong_labels
+            )
+
+            wrong_targets = torch.zeros_like(
+                wrong_output
+            )
+
+            wrong_loss = criterion(
+                wrong_output,
+                wrong_targets
+            )
+
+            # -------------------------
+            # 생성 이미지 + 올바른 label
             # -------------------------
             noise = torch.randn(
                 batch_size,
@@ -134,13 +162,18 @@ def test_discriminator():
             # -------------------------
             # Test Loss
             # -------------------------
-            loss = real_loss + fake_loss
+            loss = (
+                real_loss
+                + wrong_loss
+                + fake_loss
+            )
 
             total_loss += loss.item()
 
     total_loss /= len(test_loader)
 
     return total_loss
+
 
 # Checkpoint 0 저장
 checkpoint = {
@@ -203,7 +236,9 @@ for epoch in range(num_epochs):
 
             optimizer_D.zero_grad(set_to_none=True)
 
-            # 실제 이미지
+            # -------------------------
+            # 실제 이미지 + 올바른 label
+            # -------------------------
             real_output = discriminator(
                 real_images,
                 real_labels
@@ -218,7 +253,37 @@ for epoch in range(num_epochs):
                 real_targets
             )
 
-            # 생성 이미지
+            # -------------------------
+            # 실제 이미지 + 잘못된 label
+            # -------------------------
+            wrong_offsets = torch.randint(
+                1,
+                10,
+                (batch_size,),
+                device=device
+            )
+
+            wrong_labels = (
+                real_labels + wrong_offsets
+            ) % 10
+
+            wrong_output = discriminator(
+                real_images,
+                wrong_labels
+            )
+
+            wrong_targets = torch.zeros_like(
+                wrong_output
+            )
+
+            wrong_loss = criterion(
+                wrong_output,
+                wrong_targets
+            )
+
+            # -------------------------
+            # 생성 이미지 + 올바른 label
+            # -------------------------
             noise = torch.randn(
                 batch_size,
                 noise_dim,
@@ -244,8 +309,14 @@ for epoch in range(num_epochs):
                 fake_targets
             )
 
+            # -------------------------
             # Discriminator Loss
-            d_loss = real_loss + fake_loss
+            # -------------------------
+            d_loss = (
+                real_loss
+                + wrong_loss
+                + fake_loss
+            )
 
             # Gradient 계산
             d_loss.backward()
@@ -264,7 +335,7 @@ for epoch in range(num_epochs):
             param.requires_grad = False
 
         for _ in range(train_ratio[1]):
-            
+
             optimizer_G.zero_grad(set_to_none=True)
 
             # 새로운 Noise 생성
@@ -303,7 +374,7 @@ for epoch in range(num_epochs):
 
             # Epoch Loss 누적
             g_epoch_loss += g_loss.item()
-        
+
         # D gradient 계산 활성화
         for param in discriminator.parameters():
             param.requires_grad = True
@@ -317,7 +388,7 @@ for epoch in range(num_epochs):
     g_epoch_loss /= (
         len(train_loader) * train_ratio[1]
     )
-    
+
     # Test
     test_loss = test_discriminator()
 
@@ -417,3 +488,4 @@ for epoch in range(num_epochs):
             f"Milestone Checkpoint 저장: "
             f"{milestone_path}"
         )
+
