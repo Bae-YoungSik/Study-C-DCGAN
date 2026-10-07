@@ -3,3 +3,58 @@
 2 : 10 이하 checkpoint 로드 추가 이전
 3 : G:D 학습 비율 추가 및 최저화 이전
 4 : fifth 훈련 전(진짜이미지 + 가짜 레이블 -> 0), (가따 레이블 선택시, 렌덤 레이블 선택) 추가 젼
+5 : fifth 훈련 및 분석 종료 시점 (훈련 중에만 확인할 수 있는 정보 최대한 출력해 기록하기)
+	
+	D Real Loss
+	D Wrong Label Loss
+	D Fake Loss
+	D Total Loss
+
+	D(real, correct label) 평균 Logit
+	D(real, wrong label) 평균 Logit
+	D(fake, label) 평균 Logit
+
+	G Loss
+	G가 생성한 fake에 대한 D 출력 평균 Logit
+
+	Test Real Loss
+	Test Wrong Label Loss
+	Test Fake Loss
+	Test Total Loss
+
+	Test D(real, correct label) 평균 Logit
+	Test D(real, wrong label) 평균 Logit
+	Test D(fake, label) 평균 Logit
+
+	G Learning Rate
+	D Learning Rate
+
+Epoch
+│
+├── D
+│   ├── Real Loss
+│   ├── Wrong Label Loss
+│   ├── Fake Loss
+│   ├── Total Loss
+│   ├── Real Output
+│   ├── Wrong Label Output
+│   └── Fake Output
+│
+├── G
+│   ├── Loss
+│   └── Fake Output
+│
+├── Test
+│   ├── Real Loss
+│   ├── Wrong Label Loss
+│   ├── Fake Loss
+│   ├── Total Loss
+│   ├── Real Output
+│   ├── Wrong Label Output
+│   └── Fake Output
+│
+└── Learning Rate
+    ├── G
+    └── D
+
+

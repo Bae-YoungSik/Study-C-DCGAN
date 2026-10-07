@@ -268,8 +268,8 @@ class Classifier(nn.Module):
 
 # 평가할 체크포인트 폴더
 checkpoint_folders = {
-    "fourth": "./checkpoint/4. fourth/checkpoint_Periodic",
-    "fifth": "./checkpoint/checkpoint_Periodic"
+    "fifth": "./checkpoint/5. fifth/checkpoint_Periodic",
+    "sixth": "./checkpoint/checkpoint_Periodic"
 }
 
 # 클래스당 생성할 이미지 수

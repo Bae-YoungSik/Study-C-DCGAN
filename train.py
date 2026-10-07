@@ -75,7 +75,14 @@ def test_discriminator():
     generator.eval()
     discriminator.eval()
 
+    real_loss_total = 0
+    wrong_loss_total = 0
+    fake_loss_total = 0
     total_loss = 0
+
+    real_output_total = 0
+    wrong_output_total = 0
+    fake_output_total = 0
 
     with torch.no_grad():
 
@@ -168,11 +175,30 @@ def test_discriminator():
                 + fake_loss
             )
 
+            # -------------------------
+            # Test 결과 누적
+            # -------------------------
+            real_loss_total += real_loss.item()
+            wrong_loss_total += wrong_loss.item()
+            fake_loss_total += fake_loss.item()
             total_loss += loss.item()
 
-    total_loss /= len(test_loader)
+            real_output_total += real_output.mean().item()
+            wrong_output_total += wrong_output.mean().item()
+            fake_output_total += fake_output.mean().item()
 
-    return total_loss
+    num_batches = len(test_loader)
+
+    return {
+        "real_loss": real_loss_total / num_batches,
+        "wrong_loss": wrong_loss_total / num_batches,
+        "fake_loss": fake_loss_total / num_batches,
+        "total_loss": total_loss / num_batches,
+
+        "real_output": real_output_total / num_batches,
+        "wrong_output": wrong_output_total / num_batches,
+        "fake_output": fake_output_total / num_batches
+    }
 
 
 # Checkpoint 0 저장
@@ -212,7 +238,17 @@ for epoch in range(num_epochs):
     discriminator.train()
 
     g_epoch_loss = 0
+
     d_epoch_loss = 0
+    d_real_loss = 0
+    d_wrong_loss = 0
+    d_fake_loss = 0
+
+    d_real_output = 0
+    d_wrong_output = 0
+    d_fake_output = 0
+
+    g_fake_output = 0
 
     for images, labels in train_loader:
 
@@ -327,6 +363,14 @@ for epoch in range(num_epochs):
             # Epoch Loss 누적
             d_epoch_loss += d_loss.item()
 
+            d_real_loss += real_loss.item()
+            d_wrong_loss += wrong_loss.item()
+            d_fake_loss += fake_loss.item()
+
+            d_real_output += real_output.mean().item()
+            d_wrong_output += wrong_output.mean().item()
+            d_fake_output += fake_output.mean().item()
+
         # ==================================================
         # 2. Generator 학습
         # ==================================================
@@ -375,6 +419,8 @@ for epoch in range(num_epochs):
             # Epoch Loss 누적
             g_epoch_loss += g_loss.item()
 
+            g_fake_output += fake_output.mean().item()
+
         # D gradient 계산 활성화
         for param in discriminator.parameters():
             param.requires_grad = True
@@ -382,25 +428,85 @@ for epoch in range(num_epochs):
     # =========================
     # Epoch 결과
     # =========================
-    d_epoch_loss /= (
+    d_step_count = (
         len(train_loader) * train_ratio[0]
     )
-    g_epoch_loss /= (
+
+    g_step_count = (
         len(train_loader) * train_ratio[1]
     )
 
+    d_epoch_loss /= d_step_count
+
+    d_real_loss /= d_step_count
+    d_wrong_loss /= d_step_count
+    d_fake_loss /= d_step_count
+
+    d_real_output /= d_step_count
+    d_wrong_output /= d_step_count
+    d_fake_output /= d_step_count
+
+    g_epoch_loss /= g_step_count
+    g_fake_output /= g_step_count
+
     # Test
-    test_loss = test_discriminator()
+    # Test
+    test_result = test_discriminator()
 
     # 시간 계산
     epoch_time = time.perf_counter() - epoch_start_time
     elapsed_time = time.perf_counter() - total_start_time
 
+    # Learning Rate
+    g_lr = optimizer_G.param_groups[0]["lr"]
+    d_lr = optimizer_D.param_groups[0]["lr"]
+
     print(
-        f"Epoch [{epoch + 1}/{num_epochs}] "
-        f"D Loss: {d_epoch_loss:.4f} "
+        f"Epoch [{epoch + 1}/{num_epochs}]"
+    )
+
+    print(
+        f"D Loss | "
+        f"Real: {d_real_loss:.4f} "
+        f"Wrong: {d_wrong_loss:.4f} "
+        f"Fake: {d_fake_loss:.4f} "
+        f"Total: {d_epoch_loss:.4f}"
+    )
+
+    print(
+        f"D Output | "
+        f"Real: {d_real_output:.4f} "
+        f"Wrong: {d_wrong_output:.4f} "
+        f"Fake: {d_fake_output:.4f}"
+    )
+
+    print(
         f"G Loss: {g_epoch_loss:.4f} "
-        f"Test Loss: {test_loss:.4f} "
+        f"G Fake Output: {g_fake_output:.4f}"
+    )
+
+    print(
+        f"Test Loss | "
+        f"Real: {test_result['real_loss']:.4f} "
+        f"Wrong: {test_result['wrong_loss']:.4f} "
+        f"Fake: {test_result['fake_loss']:.4f} "
+        f"Total: {test_result['total_loss']:.4f}"
+    )
+
+    print(
+        f"Test Output | "
+        f"Real: {test_result['real_output']:.4f} "
+        f"Wrong: {test_result['wrong_output']:.4f} "
+        f"Fake: {test_result['fake_output']:.4f}"
+    )
+
+    print(
+        f"Learning Rate | "
+        f"G: {g_lr:.6f} "
+        f"D: {d_lr:.6f}"
+    )
+
+    print(
         f"Epoch Time: {epoch_time:.2f}s "
         f"Elapsed Time: {elapsed_time / 60:.2f}min"
     )
